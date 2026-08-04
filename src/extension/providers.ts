@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 
 import { missingFields, probabilityOf } from "../core/checks.ts";
-import { addDays, addMonths, daysUntil, formatDate, parseAbsoluteDate } from "../core/datetime.ts";
+import { addDays, addMonths, calendarDaysUntil, formatDate, parseAbsoluteDate } from "../core/datetime.ts";
 import {
   CANONICAL_FIELD_ORDER,
   COMPARISONS,
@@ -10,7 +10,7 @@ import {
   PATTERN_IDS,
   PATTERNS,
 } from "../core/patterns.ts";
-import { fieldValue, isEasy, type PredictionLine } from "../core/parse.ts";
+import { fieldValue, isEasy, type PredictionLine, type Verdict, VERDICT_MARKERS } from "../core/parse.ts";
 import { canonicalize, renderAffirmation, renderFalsification } from "../core/render.ts";
 import { RULES } from "../core/rules.ts";
 import type { ConfigStore } from "./config.ts";
@@ -139,6 +139,17 @@ export class KongyoCompletionProvider implements vscode.CompletionItemProvider {
       return COMPARISONS.map((value) => new vscode.CompletionItem(value, vscode.CompletionItemKind.EnumMember));
     }
 
+    if (key === "C") {
+      const states = ["true", "false", "完了", "マージ", "存在する", "存在しない"];
+      const stateItems = states.map((value, index) => {
+        const item = new vscode.CompletionItem(value, vscode.CompletionItemKind.EnumMember);
+        item.detail = "状態リテラル（C3 反証形を満たす）";
+        item.sortText = `0${String(index)}`;
+        return item;
+      });
+      return [...stateItems, ...distinctValues(this.#analyzer, document, key).map(usedValueItem)];
+    }
+
     if (key === "R") {
       const templates = [
         "外れたら、見積もりを +2 日側へ改訂",
@@ -154,13 +165,24 @@ export class KongyoCompletionProvider implements vscode.CompletionItemProvider {
       });
     }
 
-    return distinctValues(this.#analyzer, document, key).map((value) => {
-      const item = new vscode.CompletionItem(value, vscode.CompletionItemKind.Text);
-      item.detail = "この文書で既に使った値";
-      return item;
-    });
+    return distinctValues(this.#analyzer, document, key).map(usedValueItem);
   }
 }
+
+function usedValueItem(value: string): vscode.CompletionItem {
+  const item = new vscode.CompletionItem(value, vscode.CompletionItemKind.Text);
+  item.detail = "この文書で既に使った値";
+  item.sortText = `1${value}`;
+  return item;
+}
+
+/** 末尾記号の意味。ホバーで §6 の置換規則を思い出せるようにする。 */
+const VERDICT_MEANING: Readonly<Record<Verdict, string>> = {
+  pending: "未判定。判定日に `○` `×` `－` のいずれかへ置換する。追記ではなく置換なのはここだけ。",
+  hit: "当たり。`○` の数は集計しない（§6）。",
+  miss: "外れ。外れは負債ではない。外れを含む記録が履歴である。",
+  undecidable: "判定不能。射程を書き損ねた数として、`×` と並んで集計に出る。",
+};
 
 export class KongyoHoverProvider implements vscode.HoverProvider {
   readonly #analyzer: Analyzer;
@@ -181,6 +203,18 @@ export class KongyoHoverProvider implements vscode.HoverProvider {
       if (at < field.keySpan.start || at > field.keySpan.end) continue;
       const meta = FIELD_META[field.key];
       md.appendMarkdown(`**${meta.token}** — ${meta.label}\n\n${meta.description}\n`);
+      return new vscode.Hover(md);
+    }
+
+    if (parsed.verdictSpan !== null && parsed.verdict !== null && at >= parsed.verdictSpan.start) {
+      md.appendMarkdown(`**${VERDICT_MARKERS[parsed.verdict]}** — ${VERDICT_MEANING[parsed.verdict]}\n`);
+      return new vscode.Hover(md);
+    }
+
+    if (parsed.stampSpan !== null && at >= parsed.stampSpan.start && at <= parsed.stampSpan.end) {
+      md.appendMarkdown(
+        `**刻印** — ${parsed.stamp ?? ""} に台帳へ確定した印。\n\n保存後、この行の本文は書き換えられない。許されるのは末尾記号の置換だけ（§6「追記のみ。編集不可」）。\n`,
+      );
       return new vscode.Hover(md);
     }
 
@@ -218,12 +252,52 @@ export class KongyoHoverProvider implements vscode.HoverProvider {
     }
     const deadline = parseAbsoluteDate(fieldValue(parsed, "D"));
     if (deadline !== null) {
-      const remaining = daysUntil(deadline.deadlineMs, Date.now());
-      md.appendMarkdown(
-        remaining >= 0 ? `判定まで あと ${String(remaining)} 日\n` : `期日を ${String(-remaining)} 日超過\n`,
-      );
+      const nowMs = Date.now();
+      const days = calendarDaysUntil(deadline.deadlineMs, nowMs);
+      if (deadline.deadlineMs > nowMs) {
+        md.appendMarkdown(days <= 0 ? "今日が期日\n" : `判定まで あと ${String(days)} 日\n`);
+      } else {
+        md.appendMarkdown(days >= 0 ? "今日が期日（判定できる）\n" : `期日を ${String(-days)} 日超過\n`);
+      }
     }
     return new vscode.Hover(md);
+  }
+}
+
+/**
+ * アウトラインとパンくず。台帳の一覧性は判定の費用を下げる（§9「週一で末尾記号を置換する」）。
+ * 記号を名前の先頭に置くので、アウトラインがそのまま判定待ちの一覧になる。
+ */
+export class KongyoDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
+  readonly #analyzer: Analyzer;
+
+  constructor(analyzer: Analyzer) {
+    this.#analyzer = analyzer;
+  }
+
+  provideDocumentSymbols(document: vscode.TextDocument): vscode.DocumentSymbol[] {
+    const out: vscode.DocumentSymbol[] = [];
+    for (const line of this.#analyzer.analyze(document).lines) {
+      if (line.parsed.kind !== "prediction") continue;
+      const parsed = line.parsed;
+      const subject = fieldValue(parsed, "S") || fieldValue(parsed, "E") || fieldValue(parsed, "S1") || "（対象なし）";
+      const marker = parsed.verdict !== null ? VERDICT_MARKERS[parsed.verdict] : parsed.stamp === null ? "下書き" : "";
+      const name = `${marker} ${parsed.pattern ?? "?"} ${subject.slice(0, 40)}`.trim();
+      const deadline = fieldValue(parsed, "D");
+      const probability = fieldValue(parsed, "p");
+      const detail = [deadline.length > 0 ? `D=${deadline}` : null, probability.length > 0 ? `p=${probability}` : null]
+        .filter((part) => part !== null)
+        .join(" ");
+      const kind =
+        parsed.stamp === null
+          ? vscode.SymbolKind.Variable
+          : parsed.verdict === null || parsed.verdict === "pending"
+            ? vscode.SymbolKind.Event
+            : vscode.SymbolKind.Constant;
+      const range = new vscode.Range(line.lineNumber, 0, line.lineNumber, line.text.length);
+      out.push(new vscode.DocumentSymbol(name, detail, kind, range, range));
+    }
+    return out;
   }
 }
 

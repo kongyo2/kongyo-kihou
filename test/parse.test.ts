@@ -77,6 +77,25 @@ describe("parseLine", () => {
     expect(parseLine("# ただのコメント").kind).toBe("comment");
   });
 
+  it("型と項のあいだの語は straySpan に載る", () => {
+    const text = "P1 予備メモ p=0.5 D=2026-09-30";
+    const line = parseLine(text);
+    if (line.kind !== "prediction") throw new Error("prediction であるはず");
+    expect(line.straySpan).not.toBeNull();
+    if (line.straySpan === null) return;
+    expect(text.slice(line.straySpan.start, line.straySpan.end)).toBe("予備メモ");
+  });
+
+  it("正しい行と [易] は straySpan を作らない", () => {
+    const clean = parseLine(EXAMPLE);
+    if (clean.kind !== "prediction") throw new Error("prediction であるはず");
+    expect(clean.straySpan).toBeNull();
+
+    const easy = parseLine("[2026-08-04] P1 [易] p=0.95 D=2026-09-30 S=x O=y C=1 J=API R=閾値を変更  →");
+    if (easy.kind !== "prediction") throw new Error("prediction であるはず");
+    expect(easy.straySpan).toBeNull();
+  });
+
   it("記録行を読む", () => {
     const line = parseLine('# kongyo-note at=2026-08-04T10:00 kind=解除 ref="[2026-08-01] P1 p=0.3" detail="行=12"');
     expect(line.kind).toBe("comment");

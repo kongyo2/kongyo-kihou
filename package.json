@@ -2,10 +2,15 @@
   "name": "kongyo-kihou",
   "displayName": "kongyo記法",
   "description": "事前の言い訳を構文で落とす。予測を書いた瞬間に判定可能性を検査し、確定した行を書き換え不能にするリアルタイム記述拘束。",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "publisher": "kongyo2",
   "private": true,
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#171a26",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.96.0",
     "node": ">=20.18.0"
@@ -32,7 +37,9 @@
   "activationEvents": [
     "onLanguage:kongyo",
     "onLanguage:markdown",
-    "onLanguage:plaintext"
+    "onLanguage:plaintext",
+    "workspaceContains:**/*.kongyo",
+    "workspaceContains:**/*.kgy"
   ],
   "contributes": {
     "languages": [
@@ -124,6 +131,24 @@
         "title": "記法の規則を表示する",
         "category": "kongyo",
         "icon": "$(book)"
+      },
+      {
+        "command": "kongyo.tree.hit",
+        "title": "○ 当たり",
+        "category": "kongyo",
+        "icon": "$(circle-large-outline)"
+      },
+      {
+        "command": "kongyo.tree.miss",
+        "title": "× 外れ",
+        "category": "kongyo",
+        "icon": "$(close)"
+      },
+      {
+        "command": "kongyo.tree.undecidable",
+        "title": "－ 判定不能",
+        "category": "kongyo",
+        "icon": "$(remove)"
       }
     ],
     "keybindings": [
@@ -185,9 +210,137 @@
         {
           "command": "kongyo.judgeLine",
           "when": "false"
+        },
+        {
+          "command": "kongyo.tree.hit",
+          "when": "false"
+        },
+        {
+          "command": "kongyo.tree.miss",
+          "when": "false"
+        },
+        {
+          "command": "kongyo.tree.undecidable",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "kongyo.judge",
+          "when": "view == kongyo-pending",
+          "group": "navigation@1"
+        },
+        {
+          "command": "kongyo.tally",
+          "when": "view == kongyo-pending",
+          "group": "navigation@2"
+        },
+        {
+          "command": "kongyo.openLedger",
+          "when": "view == kongyo-pending",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "kongyo.tree.hit",
+          "when": "view == kongyo-pending && viewItem == kongyoDueEntry",
+          "group": "inline@1"
+        },
+        {
+          "command": "kongyo.tree.miss",
+          "when": "view == kongyo-pending && viewItem == kongyoDueEntry",
+          "group": "inline@2"
+        },
+        {
+          "command": "kongyo.tree.undecidable",
+          "when": "view == kongyo-pending && viewItem == kongyoDueEntry",
+          "group": "inline@3"
         }
       ]
     },
+    "views": {
+      "explorer": [
+        {
+          "id": "kongyo-pending",
+          "name": "kongyo 判定待ち",
+          "icon": "$(law)",
+          "contextualTitle": "kongyo記法",
+          "when": "kongyo.active",
+          "visibility": "collapsed"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "kongyo-pending",
+        "contents": "判定を待つ予測は無い。\n[予測を鋳造する](command:kongyo.cast)\n[台帳を開く](command:kongyo.openLedger)"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "kongyo.gettingStarted",
+        "title": "kongyo記法 — 事前の言い訳を構文で落とす",
+        "description": "予測を書いた瞬間に判定可能性を検査し、確定した行を書き換え不能にする。事後に要求するのは記号一つの記入だけ。",
+        "steps": [
+          {
+            "id": "kongyo.step.cast",
+            "title": "鋳造する",
+            "description": "気分の一文を、判定可能な一行に鋳造する。一項ずつ訊かれ、通らない値では次へ進めない。\n[鋳造ウィザードを開く](command:kongyo.cast)",
+            "media": {
+              "markdown": "media/walkthrough/cast.md"
+            },
+            "completionEvents": [
+              "onCommand:kongyo.cast"
+            ]
+          },
+          {
+            "id": "kongyo.step.write",
+            "title": "直接書く",
+            "description": "台帳を開き、`P1` と打って補完を受ける。欠けている項は行末に出る。却下が消えたら確定する。\n[台帳を開く](command:kongyo.openLedger)",
+            "media": {
+              "markdown": "media/walkthrough/write.md"
+            },
+            "completionEvents": [
+              "onCommand:kongyo.openLedger"
+            ]
+          },
+          {
+            "id": "kongyo.step.judge",
+            "title": "週一で判定する",
+            "description": "期日が来た行の末尾記号を `○` `×` `－` へ置換する。理由は書かない。\n[判定する](command:kongyo.judge)",
+            "media": {
+              "markdown": "media/walkthrough/judge.md"
+            },
+            "completionEvents": [
+              "onCommand:kongyo.judge"
+            ]
+          },
+          {
+            "id": "kongyo.step.tally",
+            "title": "月一で集計を見る",
+            "description": "`×` の絶対数、`－` の絶対数、`[易]` を除いたブライアスコア。`○` の数は集計しない。\n[集計を見る](command:kongyo.tally)",
+            "media": {
+              "markdown": "media/walkthrough/tally.md"
+            },
+            "completionEvents": [
+              "onCommand:kongyo.tally"
+            ]
+          },
+          {
+            "id": "kongyo.step.inventory",
+            "title": "書けなければ在庫へ",
+            "description": "記法を通らない文は、原文のまま未形式化在庫へ落とす。在庫を減らすことは目標ではない。\n[在庫を開く](command:kongyo.openInventory)",
+            "media": {
+              "markdown": "media/walkthrough/inventory.md"
+            },
+            "completionEvents": [
+              "onCommand:kongyo.openInventory"
+            ]
+          }
+        ]
+      }
+    ],
     "configuration": {
       "title": "kongyo記法",
       "properties": {
@@ -330,6 +483,11 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "ステータスバーに `×` `－` の絶対数とブライアスコアを表示する。§6 のとおり `○` の数は表示しない。"
+        },
+        "kongyo.notifications.due": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "起動時、判定期日が到来した予測があれば通知する（§9「週一で末尾記号を置換する」）。"
         }
       }
     },
@@ -371,6 +529,7 @@
   "scripts": {
     "build": "node scripts/build.mts",
     "watch": "node scripts/build.mts --watch",
+    "icon": "node scripts/icon.mts",
     "probe": "node scripts/build.mts && node scripts/probe.mts",
     "typecheck": "tsc --noEmit --pretty false --checkers 4",
     "typecheck:watch": "tsc --noEmit --watch --pretty false --checkers 4",

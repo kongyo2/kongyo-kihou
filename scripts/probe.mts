@@ -108,6 +108,7 @@ const vscode = {
   EventEmitter,
   MarkdownString,
   ThemeColor: Passthrough,
+  ThemeIcon: Passthrough,
   Diagnostic: Passthrough,
   CodeAction: Passthrough,
   CodeLens: Passthrough,
@@ -115,6 +116,8 @@ const vscode = {
   SnippetString: Passthrough,
   Hover: Passthrough,
   InlayHint: Passthrough,
+  DocumentSymbol: Passthrough,
+  TreeItem: Passthrough,
   WorkspaceEdit: class {
     replace = noop;
     insert = noop;
@@ -128,6 +131,8 @@ const vscode = {
   OverviewRulerLane: { Left: 1, Center: 2, Right: 4, Full: 7 },
   DecorationRangeBehavior: { OpenOpen: 0, ClosedClosed: 1, OpenClosed: 2, ClosedOpen: 3 },
   QuickInputButtons: { Back: {} },
+  TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
+  SymbolKind: { Variable: 12, Constant: 13, Event: 23 },
   workspace: {
     workspaceFolders: undefined,
     textDocuments: [] as readonly unknown[],
@@ -168,6 +173,13 @@ const vscode = {
       onDidHide: asDisposable,
       onDidTriggerButton: asDisposable,
     }),
+    createTreeView: () => ({
+      dispose: noop,
+      badge: undefined as unknown,
+      visible: false,
+      onDidChangeVisibility: asDisposable,
+      onDidChangeSelection: asDisposable,
+    }),
     onDidChangeActiveTextEditor: asDisposable,
     onDidChangeVisibleTextEditors: asDisposable,
     showInformationMessage: async (): Promise<undefined> => undefined,
@@ -184,6 +196,7 @@ const vscode = {
     registerInlayHintsProvider: asDisposable,
     registerCompletionItemProvider: asDisposable,
     registerDocumentFormattingEditProvider: asDisposable,
+    registerDocumentSymbolProvider: asDisposable,
     setTextDocumentLanguage: async (document: unknown): Promise<unknown> => document,
   },
   commands: {

@@ -1,16 +1,13 @@
 import * as vscode from "vscode";
 
 import { checkLine, type CompiledChecks, type Issue } from "../core/checks.ts";
+import { kongyoFencedRegions, type Region } from "../core/fence.ts";
 import { type KongyoLine, parseLine } from "../core/parse.ts";
 import type { KongyoConfig } from "./config.ts";
 
 export const KONGYO_LANGUAGE = "kongyo";
 
-/** 検査対象の行範囲。`end` は排他。 */
-export interface Region {
-  readonly start: number;
-  readonly end: number;
-}
+export type { Region } from "../core/fence.ts";
 
 export interface AnalyzedLine {
   readonly lineNumber: number;
@@ -26,35 +23,11 @@ export interface AnalyzedDocument {
   readonly byLine: ReadonlyMap<number, AnalyzedLine>;
 }
 
-const FENCE_OPEN = /^\s*(`{3,}|~{3,})\s*kongyo\b/;
-const FENCE_CLOSE = /^\s*(`{3,}|~{3,})\s*$/;
-
-/** Markdown / プレーンテキスト中の ```kongyo フェンスを拾う。 */
-function fencedRegions(document: vscode.TextDocument): readonly Region[] {
-  const regions: Region[] = [];
-  let open: number | null = null;
-  for (let i = 0; i < document.lineCount; i += 1) {
-    const text = document.lineAt(i).text;
-    if (open === null) {
-      if (FENCE_OPEN.test(text)) open = i + 1;
-      continue;
-    }
-    if (FENCE_CLOSE.test(text)) {
-      if (i > open) regions.push({ start: open, end: i });
-      open = null;
-    }
-  }
-  if (open !== null && open < document.lineCount) {
-    regions.push({ start: open, end: document.lineCount });
-  }
-  return regions;
-}
-
 export function regionsOf(document: vscode.TextDocument, config: KongyoConfig): readonly Region[] {
   if (document.languageId === KONGYO_LANGUAGE) return [{ start: 0, end: document.lineCount }];
   if (!config.markdownEnabled) return [];
   if (document.languageId !== "markdown" && document.languageId !== "plaintext") return [];
-  return fencedRegions(document);
+  return kongyoFencedRegions(document.lineCount, (index) => document.lineAt(index).text);
 }
 
 export function isRelevant(document: vscode.TextDocument, config: KongyoConfig): boolean {

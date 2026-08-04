@@ -34,6 +34,7 @@ export const RULE_IDS = [
   "G-TYPE",
   "G-DISJUNCTION",
   "G-VOCABULARY",
+  "G-STRAY",
   "G-MARKER",
   "G-UNFORMALIZED",
 ] as const;
@@ -138,6 +139,12 @@ export const RULES: Readonly<Record<RuleId, RuleDoc>> = {
     title: "禁止語彙",
     text: "§5 の語は `O`・`C` の欄で使用不可。左を書いたら右に鋳造する。",
     closes: "幅寄せ",
+  },
+  "G-STRAY": {
+    id: "G-STRAY",
+    title: "帰属の無い語",
+    text: "型と項のあいだに、どの項にも属さない語がある。一行は型と項の列であり、それ以外の語は確定でも整形でも保存されない。項の値に入れるか、削除する。",
+    closes: null,
   },
   "G-MARKER": {
     id: "G-MARKER",

@@ -7,7 +7,7 @@
 
 import { bodyOf, markerOf, parseLine, type Verdict } from "./parse.ts";
 import { EXCEPTION_SOURCES } from "./vocabulary.ts";
-import { unionRegex } from "./text.ts";
+import { findAll, unionRegex } from "./text.ts";
 
 export type GuardViolation =
   /** 確定行の本文が書き換えられた。 */
@@ -45,11 +45,7 @@ const LEGAL: GuardResult = {
 const EXCEPTION_RE = unionRegex(EXCEPTION_SOURCES);
 
 function countExceptions(text: string): number {
-  EXCEPTION_RE.lastIndex = 0;
-  let count = 0;
-  while (EXCEPTION_RE.exec(text) !== null) count += 1;
-  EXCEPTION_RE.lastIndex = 0;
-  return count;
+  return findAll(EXCEPTION_RE, text).length;
 }
 
 function splitLines(text: string): readonly string[] {

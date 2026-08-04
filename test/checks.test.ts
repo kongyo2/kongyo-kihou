@@ -68,6 +68,16 @@ describe("必須項", () => {
     expect(missingFields(prediction("P1 p=0.5"))).toEqual(["D", "S", "O", "C", "J", "R"]);
   });
 
+  it("欠けた項の修正は末尾記号の手前に挿す", () => {
+    const text = "P1 p=0.5 D=2026-09-30 S=x O=y C=1 J=API  →";
+    const found = issues(text).find((issue) => issue.ruleId === "F-MISSING");
+    const fix = found?.fixes[0];
+    expect(fix?.kind).toBe("replace");
+    if (fix?.kind !== "replace") return;
+    // 記号の後ろへ挿すと、項が判定の外に出てしまう。
+    expect(fix.span.start).toBeLessThan(text.indexOf("→"));
+  });
+
   it("記号だけあって値が空なら却下される", () => {
     expect(rules("P1 p=0.5 D= S=x O=y C=1 J=API R=閾値を変更")).toContain("F-EMPTY");
   });
@@ -223,6 +233,29 @@ describe("C6 例外閉包", () => {
 
   it("判定可能な観測を持つ「ただし」節は通る", () => {
     expect(rules("P1 p=0.5 D=2026-09-30 S=x O=件数 C=>10 ただし停止時間が0分の場合 J=API R=閾値を変更")).toEqual([]);
+  });
+});
+
+describe("G-STRAY 帰属の無い語", () => {
+  it("型と項のあいだの語は却下される（確定・整形で黙って消えるため）", () => {
+    const found = issues("P1 予備メモ p=0.5 D=2026-09-30 S=x O=y C=1 J=API R=閾値を変更").find(
+      (issue) => issue.ruleId === "G-STRAY",
+    );
+    expect(found?.severity).toBe("error");
+    expect(found?.message).toContain("予備メモ");
+    const fix = found?.fixes[0];
+    expect(fix?.kind).toBe("replace");
+    if (fix?.kind !== "replace") return;
+    expect(fix.text).toBe("");
+  });
+
+  it("正しい行と [易] は帰属の無い語にならない", () => {
+    expect(rules("P1 p=0.5 D=2026-09-30 S=x O=y C=1 J=API R=閾値を変更")).toEqual([]);
+    expect(
+      issues("[2026-08-04] P1 [易] p=0.95 D=2026-09-30 S=x O=y C=1 J=API R=閾値を変更  →").some(
+        (issue) => issue.ruleId === "G-STRAY",
+      ),
+    ).toBe(false);
   });
 });
 

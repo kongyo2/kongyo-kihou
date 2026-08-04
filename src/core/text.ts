@@ -44,11 +44,6 @@ const WIDE_TO_ASCII: Readonly<Record<string, string>> = {
   "＃": "#",
 };
 
-/** 空白のみか。 */
-export function isBlank(text: string): boolean {
-  return text.trim().length === 0;
-}
-
 /** 末尾の空白を落とした長さ（＝ trimEnd 後の排他終端）。 */
 export function trimmedEnd(text: string): number {
   let end = text.length;
@@ -92,9 +87,4 @@ export function findAll(re: RegExp, text: string): readonly Span[] {
 export function unionRegex(sources: readonly string[]): RegExp {
   if (sources.length === 0) return /(?!)/g;
   return new RegExp(sources.map((s) => `(?:${s})`).join("|"), "g");
-}
-
-/** 正規表現ソースとして安全に埋め込めるようエスケープする。 */
-export function escapeRegex(literal: string): string {
-  return literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

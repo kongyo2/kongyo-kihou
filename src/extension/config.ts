@@ -16,6 +16,7 @@ export interface KongyoConfig {
   readonly inlayHintsEnabled: boolean;
   readonly codeLensEnabled: boolean;
   readonly statusBarEnabled: boolean;
+  readonly notifyDue: boolean;
   readonly checkOptions: CheckOptions;
   readonly checks: CompiledChecks;
 }
@@ -72,6 +73,7 @@ export function readConfig(scope?: vscode.Uri): KongyoConfig {
     inlayHintsEnabled: section.get<boolean>("inlayHints.enable", true),
     codeLensEnabled: section.get<boolean>("codeLens.enable", true),
     statusBarEnabled: section.get<boolean>("statusBar.enable", true),
+    notifyDue: section.get<boolean>("notifications.due", true),
     checkOptions,
     checks: compileChecks(checkOptions),
   };

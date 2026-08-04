@@ -60,6 +60,11 @@ describe("canonicalize", () => {
     const text = "P1 p=0.4 D=2026-09-30 S=a O=b C=1 J=API R=閾値を変更 E=余計な項";
     expect(canonicalize(text)).toBe(text);
   });
+
+  it("どの項にも属さない語を含む行は触らない（整形が語を消してはならない）", () => {
+    const text = "P1 予備メモ p=0.4 D=2026-09-30 S=a O=b C=1 J=API R=閾値を変更";
+    expect(canonicalize(text)).toBe(text);
+  });
 });
 
 describe("反証文", () => {
