@@ -240,23 +240,24 @@ function checkFieldPresence(line: PredictionLine, pattern: PatternId, out: Issue
 
 /** 型と項のあいだの語。正規形が保存しないものを、黙って消える前に却下する。 */
 function checkStray(line: PredictionLine, out: Issue[]): void {
-  if (line.straySpan === null) return;
-  const word = line.text.slice(line.straySpan.start, line.straySpan.end);
-  out.push({
-    ruleId: "G-STRAY",
-    severity: "error",
-    message: `「${word}」はどの項にも属さない。この位置の語は確定でも整形でも保存されない。項の値に入れるか、削除する。`,
-    span: line.straySpan,
-    fixes: [
-      {
-        kind: "replace",
-        title: `「${word.slice(0, 20)}」を削除する`,
-        span: line.straySpan,
-        text: "",
-      },
-    ],
-    excuse: null,
-  });
+  for (const stray of line.straySpans) {
+    const word = line.text.slice(stray.start, stray.end);
+    out.push({
+      ruleId: "G-STRAY",
+      severity: "error",
+      message: `「${word}」はどの項にも属さない。この位置の語は確定でも整形でも保存されない。項の値に入れるか、削除する。`,
+      span: stray,
+      fixes: [
+        {
+          kind: "replace",
+          title: `「${word.slice(0, 20)}」を削除する`,
+          span: stray,
+          text: "",
+        },
+      ],
+      excuse: null,
+    });
+  }
 }
 
 function checkDeadline(line: PredictionLine, nowMs: number, out: Issue[]): void {

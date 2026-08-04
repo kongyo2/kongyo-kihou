@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 
 import { hasBlockingIssue, probabilityOf } from "../core/checks.ts";
-import { isEasy, type Verdict, VERDICT_MARKERS } from "../core/parse.ts";
+import { bodyOf, isEasy, type Verdict, VERDICT_MARKERS } from "../core/parse.ts";
 import { renderFalsification, renderPrediction, toDraft } from "../core/render.ts";
 import { dueEntries, pendingEntries } from "../core/scoring.ts";
 import { type CommandDeps, replaceLine, resolveTarget, revealLine, showMarkdown } from "./context.ts";
@@ -81,6 +81,10 @@ async function judgeLineCommand(deps: CommandDeps, uri: vscode.Uri, lineNumber: 
   const document = await vscode.workspace.openTextDocument(uri);
   const analyzed = deps.analyzer.analyze(document).byLine.get(lineNumber);
   if (analyzed === undefined || analyzed.parsed.kind !== "prediction") return;
+  // 判定を書けるのは、確定済みでまだ判定の返っていない行だけ。
+  // ずれた行番号や古い一覧から、下書きや判定済みの行へ記号を書かない。
+  if (analyzed.parsed.stamp === null) return;
+  if (analyzed.parsed.verdict !== null && analyzed.parsed.verdict !== "pending") return;
 
   const text = document.lineAt(lineNumber).text;
   const next =
@@ -93,9 +97,32 @@ async function judgeLineCommand(deps: CommandDeps, uri: vscode.Uri, lineNumber: 
   deps.pending.refresh();
 }
 
+/**
+ * 本文の同一性で行を探し直す。一覧やツリーの行番号は、表示から押すまでのあいだに
+ * 文書が変われば古くなる。同一性は台帳の封と同じ「末尾記号を除いた本文」で見る。
+ * 同じ本文が複数あるなら決められないので null。
+ */
+function locateByBody(document: vscode.TextDocument, hint: number, body: string): number | null {
+  if (hint >= 0 && hint < document.lineCount && bodyOf(document.lineAt(hint).text) === body) return hint;
+  let found: number | null = null;
+  for (let i = 0; i < document.lineCount; i += 1) {
+    if (bodyOf(document.lineAt(i).text) !== body) continue;
+    if (found !== null) return null;
+    found = i;
+  }
+  return found;
+}
+
 async function judgeFromTree(deps: CommandDeps, node: unknown, verdict: Verdict): Promise<void> {
   if (!isPendingEntryNode(node)) return;
-  await judgeLineCommand(deps, node.uri, node.lineNumber, VERDICT_MARKERS[verdict]);
+  const document = await vscode.workspace.openTextDocument(node.uri);
+  const lineNumber = locateByBody(document, node.lineNumber, bodyOf(node.entry.text));
+  if (lineNumber === null) {
+    deps.pending.refresh();
+    void vscode.window.showWarningMessage("台帳が変わっていて、この予測の行を特定できない。一覧を更新した。");
+    return;
+  }
+  await judgeLineCommand(deps, node.uri, lineNumber, VERDICT_MARKERS[verdict]);
 }
 
 /**
@@ -136,6 +163,7 @@ async function judgeCommand(deps: CommandDeps): Promise<void> {
         detail: renderFalsification(entry.line) ?? "",
         description: due.length > 0 ? "期日到来" : "期日前",
         lineNumber: entry.lineNumber,
+        body: bodyOf(entry.text),
       })),
       {
         title: due.length > 0 ? "kongyo 判定 — 期日が来た予測" : "kongyo 判定 — 未判定の予測（期日前）",
@@ -153,8 +181,15 @@ async function judgeCommand(deps: CommandDeps): Promise<void> {
     // 記号の取消は一覧へ戻す。ここで終えると、選んだ行が宙に浮く。
     if (verdict === undefined) continue;
 
-    await judgeLineCommand(deps, document.uri, picked.lineNumber, VERDICT_MARKERS[verdict.value]);
-    lastJudged = picked.lineNumber;
+    // 一覧を出しているあいだも文書は編集できる。書き込む直前に本文で行を特定し直す。
+    const target = locateByBody(document, picked.lineNumber, picked.body);
+    if (target === null) {
+      void vscode.window.showWarningMessage("台帳が変わっていて行を特定できない。一覧を読み直す。");
+      continue;
+    }
+
+    await judgeLineCommand(deps, document.uri, target, VERDICT_MARKERS[verdict.value]);
+    lastJudged = target;
 
     // 期日到来を捌き切ったら閉じる。期日前まで続けて訊くのは判定の催促になる。
     if (due.length <= 1) break;

@@ -35,8 +35,13 @@ export type PendingNode = GroupNode | PendingEntryNode;
 /** ツリーから渡ってくる引数の検め。コマンドはどこからでも呼べるので、形は信用しない。 */
 export function isPendingEntryNode(value: unknown): value is PendingEntryNode {
   if (typeof value !== "object" || value === null) return false;
-  const node = value as { kind?: unknown; lineNumber?: unknown; uri?: unknown };
-  return node.kind === "entry" && typeof node.lineNumber === "number" && node.uri instanceof vscode.Uri;
+  const node = value as { kind?: unknown; lineNumber?: unknown; uri?: unknown; entry?: { text?: unknown } };
+  return (
+    node.kind === "entry" &&
+    typeof node.lineNumber === "number" &&
+    node.uri instanceof vscode.Uri &&
+    typeof node.entry?.text === "string"
+  );
 }
 
 function subjectOf(entry: DueEntry): string {

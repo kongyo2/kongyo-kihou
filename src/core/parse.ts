@@ -59,10 +59,11 @@ export interface PredictionLine {
   readonly patternSpan: Span | null;
   readonly easySpan: Span | null;
   /**
-   * 型と最初の項のあいだにある、どの項にも属さない語。
+   * 型と最初の項のあいだにある、どの項にも属さない語の範囲。
    * 正規形はこれを保存しない。黙って消える語は、書けないと言うのが正しい（G-STRAY）。
+   * `[易]` は正規の位置なので範囲に含めない。挟まれていれば範囲は複数に割れる。
    */
-  readonly straySpan: Span | null;
+  readonly straySpans: readonly Span[];
   readonly fields: readonly FieldToken[];
   readonly verdict: Verdict | null;
   readonly verdictSpan: Span | null;
@@ -158,16 +159,37 @@ function findEasy(norm: string): Span | null {
 }
 
 /**
- * 型（無ければ刻印）と最初の項のあいだに残る、どの項にも属さない語を探す。
- * `[易]` は正規の位置なので、同じ長さの空白に置き換えてから見る（索引を保存するため）。
+ * 型（無ければ刻印）と最初の項のあいだに残る、どの項にも属さない語の範囲を探す。
+ *
+ * `[易]` はこの位置が正規なので語には数えない。範囲にも含めない——含めると、
+ * 削除の修正が有効な標示まで巻き込んで消す。`[易]` を挟む両側に語があるときは、
+ * 範囲を割って各々を返す。
  */
-function findStray(norm: string, from: number, to: number): Span | null {
-  if (to <= from) return null;
-  const gap = norm.slice(from, to).replace(EASY_ANYWHERE, (marker) => " ".repeat(marker.length));
-  const start = trimmedStart(gap);
-  const end = trimmedEnd(gap);
-  if (end <= start) return null;
-  return span(from + start, from + end);
+function findStrays(norm: string, from: number, to: number): readonly Span[] {
+  if (to <= from) return [];
+  const gap = norm.slice(from, to);
+
+  // [易] を区切りとして区間に割る。
+  const cuts: Span[] = [];
+  let cursor = 0;
+  EASY_ANYWHERE.lastIndex = 0;
+  let m = EASY_ANYWHERE.exec(gap);
+  while (m !== null) {
+    cuts.push(span(cursor, m.index));
+    cursor = m.index + m[0].length;
+    m = EASY_ANYWHERE.exec(gap);
+  }
+  EASY_ANYWHERE.lastIndex = 0;
+  cuts.push(span(cursor, gap.length));
+
+  const out: Span[] = [];
+  for (const cut of cuts) {
+    const text = gap.slice(cut.start, cut.end);
+    const start = trimmedStart(text);
+    const end = trimmedEnd(text);
+    if (end > start) out.push(span(from + cut.start + start, from + cut.start + end));
+  }
+  return out;
 }
 
 interface RawFieldHit {
@@ -301,7 +323,7 @@ export function parseLine(text: string): KongyoLine {
     pattern,
     patternSpan,
     easySpan: findEasy(norm),
-    straySpan: findStray(norm, strayFrom, strayTo),
+    straySpans: findStrays(norm, strayFrom, strayTo),
     fields,
     verdict: marker?.verdict ?? null,
     verdictSpan: marker?.span ?? null,

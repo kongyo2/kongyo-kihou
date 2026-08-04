@@ -257,6 +257,18 @@ describe("G-STRAY 帰属の無い語", () => {
       ),
     ).toBe(false);
   });
+
+  it("[易] を挟む両側の語は別々に却下され、修正は [易] を巻き込まない", () => {
+    const text = "P1 前の語 [易] 後の語 p=0.95 D=2026-09-30 S=x O=y C=1 J=API R=閾値を変更";
+    const strays = issues(text).filter((issue) => issue.ruleId === "G-STRAY");
+    expect(strays).toHaveLength(2);
+    for (const issue of strays) {
+      const fix = issue.fixes[0];
+      expect(fix?.kind).toBe("replace");
+      if (fix?.kind !== "replace") continue;
+      expect(text.slice(fix.span.start, fix.span.end)).not.toContain("易");
+    }
+  });
 });
 
 describe("未形式化", () => {

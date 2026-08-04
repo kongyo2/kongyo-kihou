@@ -190,7 +190,7 @@ export function canonicalize(lineText: string): string {
   const line = parseLine(lineText);
   if (line.kind !== "prediction" || line.pattern === null) return lineText;
   // 正規形はどの項にも属さない語を保存できない。整形が語を消すのは整形ではない。
-  if (line.straySpan !== null) return lineText;
+  if (line.straySpans.length > 0) return lineText;
   const spec = PATTERNS[line.pattern];
   const allowed = new Set<FieldKey>([...spec.required, ...spec.optional]);
   const seen = new Set<FieldKey>();

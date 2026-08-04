@@ -13,7 +13,11 @@ export interface Region {
   readonly end: number;
 }
 
-const FENCE_OPEN = /^\s*(`{3,}|~{3,})\s*(?:kongyo|kgy)\b/i;
+/**
+ * 開きフェンス。言語名の後ろは行末か、空白区切りの属性のみ（注入文法と同じ末尾制約）。
+ * `\b` だけだと ```kongyo-extra のような別名まで開いてしまい、色の付かない行が検査される。
+ */
+const FENCE_OPEN = /^\s*(`{3,}|~{3,})\s*(?:kongyo|kgy)(?:\s+[^`~]*)?$/i;
 const FENCE_CLOSE = /^\s*(`{3,}|~{3,})\s*$/;
 
 interface OpenFence {

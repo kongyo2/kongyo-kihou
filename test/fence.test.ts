@@ -39,6 +39,13 @@ describe("kongyoFencedRegions", () => {
   it("kongyo 以外のフェンスは対象外", () => {
     expect(regions(["```python", "print(1)", "```"])).toEqual([]);
     expect(regions(["```kongyox", "P1", "```"])).toEqual([]);
+    // \b だけでは開いてしまう別名。注入文法は認識しないので、こちらも開かない。
+    expect(regions(["```kongyo-extra", "P1", "```"])).toEqual([]);
+  });
+
+  it("空白区切りの属性は許す（注入文法と同じ）", () => {
+    expect(regions(["```kongyo title=台帳", "P1", "```"])).toEqual([{ start: 1, end: 2 }]);
+    expect(regions(["```kongyo   ", "P1", "```"])).toEqual([{ start: 1, end: 2 }]);
   });
 
   it("空のフェンスは範囲を作らない", () => {
