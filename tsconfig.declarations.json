@@ -1,0 +1,13 @@
+{
+  // ゲート: isolatedDeclarations。エクスポートの型が当該ファイル単独で確定することを強制する。
+  // 出力は捨てる（node_modules/.cache 配下）。
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "incremental": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "isolatedDeclarations": true,
+    "outDir": "./node_modules/.cache/decl"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  // 出荷されないコード全部（テスト・ビルドスクリプト・vitest 設定）。
+  // extends は include を置換し、exclude と rootDir はマージするので、三つとも書き直す。
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "./",
+    "types": ["node", "vscode"]
+  },
+  "include": ["src/**/*", "test/**/*", "scripts/**/*", "vitest.config.mts"],
+  "exclude": ["dist", "coverage", "node_modules"]
+}

@@ -1,0 +1,86 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "kongyo",
+  "scopeName": "source.kongyo",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#stamp" },
+    { "include": "#pattern" },
+    { "include": "#easy" },
+    { "include": "#verdict" },
+    { "include": "#field" },
+    { "include": "#banned" }
+  ],
+  "repository": {
+    "comment": {
+      "match": "^\\s*(#|//).*$",
+      "name": "comment.line.number-sign.kongyo"
+    },
+    "stamp": {
+      "match": "^\\s*(\\[)(\\d{4}-\\d{2}-\\d{2})(\\])",
+      "captures": {
+        "1": { "name": "punctuation.definition.stamp.begin.kongyo" },
+        "2": { "name": "constant.numeric.stamp.kongyo" },
+        "3": { "name": "punctuation.definition.stamp.end.kongyo" }
+      }
+    },
+    "pattern": {
+      "match": "(?<![0-9A-Za-z])(P[1-5])(?![0-9])",
+      "name": "keyword.control.pattern.kongyo"
+    },
+    "easy": {
+      "match": "[\\[［]\\s*易\\s*[\\]］]",
+      "name": "storage.modifier.easy.kongyo"
+    },
+    "verdict": {
+      "patterns": [
+        { "match": "[→⇒]\\s*$", "name": "keyword.control.verdict.pending.kongyo" },
+        { "match": "[○〇◯]\\s*$", "name": "constant.numeric.verdict.hit.kongyo" },
+        { "match": "[×✕✖]\\s*$", "name": "keyword.other.verdict.miss.kongyo" },
+        { "match": "(?<=\\s)[－—―]\\s*$", "name": "comment.verdict.undecidable.kongyo" }
+      ]
+    },
+    "field": {
+      "begin": "(S₁|S1|S₂|S2|比較|[DSOCJpPRTE])([ \\t]*)(=)",
+      "beginCaptures": {
+        "1": { "name": "variable.parameter.field.kongyo" },
+        "3": { "name": "keyword.operator.assignment.kongyo" }
+      },
+      "end": "(?=(?:S₁|S1|S₂|S2|比較|[DSOCJpPRTE])[ \\t]*=)|(?=[→⇒○〇◯×✕✖]\\s*$)|(?=\\s[－—―]\\s*$)|$",
+      "name": "meta.field.kongyo",
+      "patterns": [
+        { "include": "#banned" },
+        { "include": "#disjunction" },
+        { "include": "#exception" },
+        { "include": "#date" },
+        { "include": "#number" },
+        { "include": "#easy" },
+        { "include": "#value" }
+      ]
+    },
+    "date": {
+      "match": "\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}(?:[T ]\\d{1,2}:\\d{2}(?::\\d{2})?)?",
+      "name": "constant.numeric.date.kongyo"
+    },
+    "number": {
+      "match": "(?<![0-9A-Za-z])[0-9]+(?:\\.[0-9]+)?(?![0-9])",
+      "name": "constant.numeric.kongyo"
+    },
+    "value": {
+      "match": "[^\\s=]+",
+      "name": "string.unquoted.value.kongyo"
+    },
+    "disjunction": {
+      "match": "または|又は|もしくは|若しくは|あるいは|或いは|どちらか|いずれか",
+      "name": "invalid.illegal.disjunction.kongyo"
+    },
+    "exception": {
+      "match": "ただし|但し|を除く|を除き|例外的に",
+      "name": "invalid.deprecated.exception.kongyo"
+    },
+    "banned": {
+      "match": "たぶん|多分|おそらく|恐らく|大方|一応|基本的に|本質的に|根本的に|要するに|そもそも|原理的に|ある程度|かなり|大きく|大幅に|相当に|やや|若干|概ね|おおむね|ほぼ|だいたい|大体|非常に|とても|すごく|極めて|多少|わりと|割と|それなりに|うまくいく|上手くいく|うまく行く|良くなる|よくなる|改善する|向上する|悪化する|成功する|失敗する|問題ない|問題無い|安定する|スケールする|健全|順調|と思う|と思われる|な気がする|気がする|かもしれない|かも知れない|でしょう|だろう|はずだ|はずです|ように見える|印象では|状況次第|場合によって|状況によって|必要に応じて|適宜|できれば|なるべく|可能な限り|余裕があれば|原則として|基本は|まもなく|間もなく|近いうち|近日|近々|そのうち|いずれ|早めに|順次|追って|将来的に|気をつける|気を付ける|注意する|意識する|反省|自戒|考え直す|善処|前向きに|しっかり|ちゃんと|きちんと|頑張る|がんばる|努力する|教訓|解釈を改める|見方を変える|認識を改める",
+      "name": "invalid.illegal.banned-vocabulary.kongyo"
+    }
+  }
+}

@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
-* text=auto
+* text=auto eol=lf
+
+# 判定記号（→ ○ × －）と全角の項記号を含む。バイナリ扱いにしない。
+*.kongyo text eol=lf
+*.kgy text eol=lf

@@ -1,0 +1,45 @@
+{
+  // ルート: §1 バンドル型アプリ。JS を出すのは esbuild、解決するのは VS Code 拡張ホスト(Node 20)。
+  // tsc は型検査専用（noEmit）。
+  "compilerOptions": {
+    // --- Strict Core（スキルの「Strict Core」をそのまま） ---
+    "skipLibCheck": true,
+    "incremental": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "useDefineForClassFields": true,
+    "resolveJsonModule": true,
+    "allowJs": false,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "noUncheckedSideEffectImports": true,
+
+    "noErrorTruncation": true,
+
+    // --- §1 バンドル型アプリの行（target/module/moduleResolution の三点セット） ---
+    // 下限ランタイムは VS Code 1.96 の拡張ホスト = Node 20.18。よって es2022 / lib は es2022 のみ。
+    // 拡張ホストは DOM を持たないので "dom" は入れない。
+    "target": "es2022",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "lib": ["es2022"],
+    "types": ["node", "vscode"],
+    "rootDir": "./src",
+    "noEmit": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src"],
+  "exclude": ["dist", "coverage", "node_modules"]
+}

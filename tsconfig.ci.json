@@ -1,0 +1,9 @@
+{
+  // ゲート: キャッシュ無し・依存の .d.ts も掃く。extends はマージなので値を書き直す。
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": false,
+    "skipLibCheck": false
+  }
+}
