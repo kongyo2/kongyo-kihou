@@ -2,6 +2,7 @@
 
 export * from "./checks.ts";
 export * from "./datetime.ts";
+export * from "./fence.ts";
 export * from "./guard.ts";
 export * from "./parse.ts";
 export * from "./patterns.ts";

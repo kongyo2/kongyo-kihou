@@ -58,6 +58,12 @@ export interface PredictionLine {
   readonly pattern: PatternId | null;
   readonly patternSpan: Span | null;
   readonly easySpan: Span | null;
+  /**
+   * 型と最初の項のあいだにある、どの項にも属さない語の範囲。
+   * 正規形はこれを保存しない。黙って消える語は、書けないと言うのが正しい（G-STRAY）。
+   * `[易]` は正規の位置なので範囲に含めない。挟まれていれば範囲は複数に割れる。
+   */
+  readonly straySpans: readonly Span[];
   readonly fields: readonly FieldToken[];
   readonly verdict: Verdict | null;
   readonly verdictSpan: Span | null;
@@ -150,6 +156,40 @@ function findEasy(norm: string): Span | null {
   const m = EASY_ANYWHERE.exec(norm);
   EASY_ANYWHERE.lastIndex = 0;
   return m === null ? null : span(m.index, m.index + m[0].length);
+}
+
+/**
+ * 型（無ければ刻印）と最初の項のあいだに残る、どの項にも属さない語の範囲を探す。
+ *
+ * `[易]` はこの位置が正規なので語には数えない。範囲にも含めない——含めると、
+ * 削除の修正が有効な標示まで巻き込んで消す。`[易]` を挟む両側に語があるときは、
+ * 範囲を割って各々を返す。
+ */
+function findStrays(norm: string, from: number, to: number): readonly Span[] {
+  if (to <= from) return [];
+  const gap = norm.slice(from, to);
+
+  // [易] を区切りとして区間に割る。
+  const cuts: Span[] = [];
+  let cursor = 0;
+  EASY_ANYWHERE.lastIndex = 0;
+  let m = EASY_ANYWHERE.exec(gap);
+  while (m !== null) {
+    cuts.push(span(cursor, m.index));
+    cursor = m.index + m[0].length;
+    m = EASY_ANYWHERE.exec(gap);
+  }
+  EASY_ANYWHERE.lastIndex = 0;
+  cuts.push(span(cursor, gap.length));
+
+  const out: Span[] = [];
+  for (const cut of cuts) {
+    const text = gap.slice(cut.start, cut.end);
+    const start = trimmedStart(text);
+    const end = trimmedEnd(text);
+    if (end > start) out.push(span(from + cut.start + start, from + cut.start + end));
+  }
+  return out;
 }
 
 interface RawFieldHit {
@@ -272,6 +312,9 @@ export function parseLine(text: string): KongyoLine {
     };
   });
 
+  const strayFrom = patternSpan?.end ?? stampSpan?.end ?? trimmedStart(norm);
+  const strayTo = hits[0]?.hitFrom ?? bodyEnd;
+
   return {
     kind: "prediction",
     text,
@@ -280,26 +323,11 @@ export function parseLine(text: string): KongyoLine {
     pattern,
     patternSpan,
     easySpan: findEasy(norm),
+    straySpans: findStrays(norm, strayFrom, strayTo),
     fields,
     verdict: marker?.verdict ?? null,
     verdictSpan: marker?.span ?? null,
   };
-}
-
-export interface DocumentLine {
-  readonly lineNumber: number;
-  readonly parsed: KongyoLine;
-}
-
-/** 行範囲を指定して文書を解析する。範囲省略で全体。 */
-export function parseLines(lines: readonly string[], from: number, to: number): readonly DocumentLine[] {
-  const out: DocumentLine[] = [];
-  for (let i = Math.max(0, from); i < Math.min(lines.length, to); i += 1) {
-    const text = lines[i];
-    if (text === undefined) continue;
-    out.push({ lineNumber: i, parsed: parseLine(text) });
-  }
-  return out;
 }
 
 export function getField(line: PredictionLine, key: FieldKey): FieldToken | null {

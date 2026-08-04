@@ -1,0 +1,67 @@
+# リリース。`vX.Y.Z` のタグを押すと走る。
+#
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# 手順：タグと package.json の版の一致を検め、全ゲートを通し、.vsix を束ね、
+# CHANGELOG の当該版の節をリリースノートとして GitHub Release に .vsix を添付する。
+# Marketplace への公開は行わない（必要になったら VSCE_PAT を用意して vsce publish を足す）。
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: リリース（gate → .vsix → GitHub Release）
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: タグと package.json の版が一致することの確認
+        run: |
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "v$PKG" ]; then
+            echo "::error::タグ $GITHUB_REF_NAME が package.json の版 $PKG と一致しない。"
+            exit 1
+          fi
+
+      - name: 依存の取得
+        run: npm ci
+
+      - name: 全ゲート
+        run: npm run gate
+
+      - name: パッケージ（.vsix）
+        run: npm run package
+
+      - name: CHANGELOG から当該版の節を切り出す
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VERSION" '
+            /^## / { if (found) exit; if ($2 == ver) { found = 1; next } }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "CHANGELOG.md に ${VERSION} の節が無いため、変更履歴はリポジトリの CHANGELOG.md を参照。" > release-notes.md
+          fi
+
+      - name: GitHub Release を作成して .vsix を添付
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --title "kongyo記法 $GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            ./*.vsix

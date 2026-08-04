@@ -60,6 +60,10 @@ function toInt(value: string | undefined): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
 /**
  * 絶対日付として解析する。相対表現・不正な暦日・欠けた桁はすべて `null`。
  * `2026-02-30` のような存在しない日は Date への往復で弾く。
@@ -89,7 +93,6 @@ export function parseAbsoluteDate(raw: string): AbsoluteDate | null {
 
   const deadline = hasTime ? start.getTime() : new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
 
-  const pad2 = (n: number): string => String(n).padStart(2, "0");
   const iso = hasTime
     ? `${String(year)}-${pad2(month)}-${pad2(day)}T${pad2(hour)}:${pad2(minute)}`
     : `${String(year)}-${pad2(month)}-${pad2(day)}`;
@@ -105,12 +108,10 @@ export function looksRelative(raw: string): boolean {
 }
 
 export function formatDate(when: Date): string {
-  const pad2 = (n: number): string => String(n).padStart(2, "0");
   return `${String(when.getFullYear())}-${pad2(when.getMonth() + 1)}-${pad2(when.getDate())}`;
 }
 
 export function formatDateTimeMinutes(when: Date): string {
-  const pad2 = (n: number): string => String(n).padStart(2, "0");
   return `${formatDate(when)}T${pad2(when.getHours())}:${pad2(when.getMinutes())}`;
 }
 
@@ -126,7 +127,14 @@ export function addMonths(when: Date, months: number): Date {
   return next;
 }
 
-/** 残り日数（切り上げ）。負なら期日は過ぎている。 */
-export function daysUntil(deadlineMs: number, nowMs: number): number {
-  return Math.ceil((deadlineMs - nowMs) / 86_400_000);
+/**
+ * 暦日での残り日数。今日なら 0、明日なら 1、昨日なら -1。
+ * 「あと 1 日」が今日を指す表示は読み違いを生む。日数は暦で数える。
+ */
+export function calendarDaysUntil(deadlineMs: number, nowMs: number): number {
+  const deadline = new Date(deadlineMs);
+  deadline.setHours(0, 0, 0, 0);
+  const now = new Date(nowMs);
+  now.setHours(0, 0, 0, 0);
+  return Math.round((deadline.getTime() - now.getTime()) / 86_400_000);
 }

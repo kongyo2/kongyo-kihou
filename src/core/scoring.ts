@@ -60,33 +60,28 @@ export interface DueEntry {
   readonly lineNumber: number;
   readonly text: string;
   readonly line: PredictionLine;
+  /** `D` を読めない行は {@link NO_DEADLINE}。並びの最後に落ちる。 */
   readonly deadlineMs: number;
 }
 
-/** 期日が到来し、まだ `→` のままの行。判定待ちの実測値。 */
-export function dueEntries(lines: readonly string[], nowMs: number): readonly DueEntry[] {
-  const out: DueEntry[] = [];
-  lines.forEach((text, lineNumber) => {
-    const parsed = parseLine(text);
-    if (parsed.kind !== "prediction") return;
-    if (parsed.stamp === null || parsed.verdict !== "pending") return;
-    const deadlineMs = deadlineOf(parsed);
-    if (deadlineMs === null || deadlineMs > nowMs) return;
-    out.push({ lineNumber, text, line: parsed, deadlineMs });
-  });
-  return out.sort((a, b) => a.deadlineMs - b.deadlineMs);
-}
+/** `D` を絶対日付として読めない確定行の期日。到来はしないが、一覧からは消さない。 */
+export const NO_DEADLINE: number = Number.MAX_SAFE_INTEGER;
 
-/** 未判定の行すべて（期日前を含む）。 */
+/** 未判定（`→` のまま）の行すべて。期日の早い順、`D` を読めない行は最後。 */
 export function pendingEntries(lines: readonly string[]): readonly DueEntry[] {
   const out: DueEntry[] = [];
   lines.forEach((text, lineNumber) => {
     const parsed = parseLine(text);
     if (parsed.kind !== "prediction") return;
     if (parsed.stamp === null || parsed.verdict !== "pending") return;
-    out.push({ lineNumber, text, line: parsed, deadlineMs: deadlineOf(parsed) ?? Number.MAX_SAFE_INTEGER });
+    out.push({ lineNumber, text, line: parsed, deadlineMs: deadlineOf(parsed) ?? NO_DEADLINE });
   });
   return out.sort((a, b) => a.deadlineMs - b.deadlineMs);
+}
+
+/** 期日が到来し、まだ `→` のままの行。判定待ちの実測値。 */
+export function dueEntries(lines: readonly string[], nowMs: number): readonly DueEntry[] {
+  return pendingEntries(lines).filter((entry) => entry.deadlineMs <= nowMs);
 }
 
 export function tally(lines: readonly string[], nowMs: number): Tally {

@@ -1,9 +1,14 @@
 import * as vscode from "vscode";
 
-import { FIELD_META, PATTERN_IDS, PATTERNS } from "../core/patterns.ts";
+import { type FieldKey, FIELD_META, PATTERN_IDS, PATTERNS } from "../core/patterns.ts";
 import { EXCUSE_TABLE, RULE_IDS, RULES } from "../core/rules.ts";
 import type { Tally } from "../core/scoring.ts";
 import { BANNED_VOCABULARY, VAGUE_REMEDY } from "../core/vocabulary.ts";
+
+/** §1 の七項。規則ビューの主表はこの順で出す。 */
+const CORE_FIELDS: readonly FieldKey[] = ["D", "S", "O", "C", "J", "p", "R"];
+/** P2 / P4 / P5 が使う追加の項。 */
+const EXTRA_FIELDS: readonly FieldKey[] = ["T", "E", "S1", "S2", "CMP"];
 
 export const VIEW_SCHEME = "kongyo-view";
 
@@ -37,8 +42,16 @@ function renderRules(): string {
   lines.push("");
   lines.push("| 記号 | 項 | 内容 |");
   lines.push("|---|---|---|");
-  for (const meta of Object.values(FIELD_META)) {
+  for (const key of CORE_FIELDS) {
+    const meta = FIELD_META[key];
     lines.push(`| \`${meta.token}\` | ${meta.label} | ${meta.description} |`);
+  }
+  lines.push("");
+  lines.push("P2 / P4 / P5 の型が使う追加の項：");
+  lines.push("");
+  for (const key of EXTRA_FIELDS) {
+    const meta = FIELD_META[key];
+    lines.push(`- \`${meta.token}\`（${meta.label}）：${meta.description}`);
   }
   lines.push("");
 
@@ -141,7 +154,11 @@ export interface TallyContext {
   readonly source: string;
   readonly inventoryTotal: number;
   readonly inventoryLast30Days: number;
+  /** 期日が到来した未判定の行。§9「週一で末尾記号を置換する」の対象。 */
+  readonly due: readonly { readonly lineNumber: number; readonly text: string }[];
 }
+
+const DUE_LIST_LIMIT = 20;
 
 export function renderTallyMarkdown(tally: Tally, context: TallyContext): string {
   const lines: string[] = [];
@@ -172,6 +189,20 @@ export function renderTallyMarkdown(tally: Tally, context: TallyContext): string
   lines.push(`| \`[易]\` として除外 | ${String(tally.easyExcluded)} |`);
   lines.push(`| \`p\` を読めず除外 | ${String(tally.unscorable)} |`);
   lines.push("");
+
+  if (context.due.length > 0) {
+    lines.push("## 判定待ち（期日到来）");
+    lines.push("");
+    lines.push("末尾の `→` を `○` `×` `－` へ置換する。理由は書かない（§9）。");
+    lines.push("");
+    for (const entry of context.due.slice(0, DUE_LIST_LIMIT)) {
+      lines.push(`- 行 ${String(entry.lineNumber)}：\`${entry.text}\``);
+    }
+    if (context.due.length > DUE_LIST_LIMIT) {
+      lines.push(`- …他 ${String(context.due.length - DUE_LIST_LIMIT)} 件`);
+    }
+    lines.push("");
+  }
 
   lines.push("## 破った回数（§3「破ったこと自体は罰しない。破った回数を数える欄を持つだけでよい」）");
   lines.push("");

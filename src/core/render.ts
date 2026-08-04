@@ -185,10 +185,12 @@ export function splitFieldValue(lineText: string, valueSpan: Span, matchSpan: Sp
   return [blankProbability(head + left + tail), blankProbability(head + right + tail)];
 }
 
-/** 正規形に整える。未知の項を含む行はそのまま返す（情報を落とさないため）。 */
+/** 正規形に整える。未知の項・帰属の無い語を含む行はそのまま返す（情報を落とさないため）。 */
 export function canonicalize(lineText: string): string {
   const line = parseLine(lineText);
   if (line.kind !== "prediction" || line.pattern === null) return lineText;
+  // 正規形はどの項にも属さない語を保存できない。整形が語を消すのは整形ではない。
+  if (line.straySpans.length > 0) return lineText;
   const spec = PATTERNS[line.pattern];
   const allowed = new Set<FieldKey>([...spec.required, ...spec.optional]);
   const seen = new Set<FieldKey>();

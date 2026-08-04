@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 
 import { hasBlockingIssue } from "../core/checks.ts";
-import { parseAbsoluteDate, daysUntil } from "../core/datetime.ts";
+import { calendarDaysUntil, parseAbsoluteDate } from "../core/datetime.ts";
 import { fieldValue } from "../core/parse.ts";
 import type { ConfigStore } from "./config.ts";
 import type { Analyzer } from "./model.ts";
@@ -69,9 +69,14 @@ export class KongyoCodeLensProvider implements vscode.CodeLensProvider {
       if (line.parsed.verdict !== "pending") continue;
       const deadline = parseAbsoluteDate(fieldValue(line.parsed, "D"));
       if (deadline === null) continue;
-      const remaining = daysUntil(deadline.deadlineMs, nowMs);
       if (deadline.deadlineMs > nowMs) {
-        lenses.push(new vscode.CodeLens(range, { title: `$(watch) あと ${String(remaining)} 日`, command: "" }));
+        const days = calendarDaysUntil(deadline.deadlineMs, nowMs);
+        lenses.push(
+          new vscode.CodeLens(range, {
+            title: days <= 0 ? "$(watch) 今日が期日" : `$(watch) あと ${String(days)} 日`,
+            command: "",
+          }),
+        );
         continue;
       }
       for (const [marker, label] of [

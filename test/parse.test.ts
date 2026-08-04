@@ -77,6 +77,37 @@ describe("parseLine", () => {
     expect(parseLine("# ただのコメント").kind).toBe("comment");
   });
 
+  it("型と項のあいだの語は straySpans に載る", () => {
+    const text = "P1 予備メモ p=0.5 D=2026-09-30";
+    const line = parseLine(text);
+    if (line.kind !== "prediction") throw new Error("prediction であるはず");
+    expect(line.straySpans).toHaveLength(1);
+    const stray = line.straySpans[0];
+    if (stray === undefined) return;
+    expect(text.slice(stray.start, stray.end)).toBe("予備メモ");
+  });
+
+  it("正しい行と [易] は straySpans を作らない", () => {
+    const clean = parseLine(EXAMPLE);
+    if (clean.kind !== "prediction") throw new Error("prediction であるはず");
+    expect(clean.straySpans).toHaveLength(0);
+
+    const easy = parseLine("[2026-08-04] P1 [易] p=0.95 D=2026-09-30 S=x O=y C=1 J=API R=閾値を変更  →");
+    if (easy.kind !== "prediction") throw new Error("prediction であるはず");
+    expect(easy.straySpans).toHaveLength(0);
+  });
+
+  it("[易] を挟む両側の語は、範囲が割れて [易] を含まない", () => {
+    const text = "P1 前の語 [易] 後の語 p=0.95 D=2026-09-30";
+    const line = parseLine(text);
+    if (line.kind !== "prediction") throw new Error("prediction であるはず");
+    expect(line.straySpans).toHaveLength(2);
+    const words = line.straySpans.map((stray) => text.slice(stray.start, stray.end));
+    expect(words).toEqual(["前の語", "後の語"]);
+    // 削除の修正が有効な [易] を巻き込まないこと。
+    expect(line.easySpan).not.toBeNull();
+  });
+
   it("記録行を読む", () => {
     const line = parseLine('# kongyo-note at=2026-08-04T10:00 kind=解除 ref="[2026-08-01] P1 p=0.3" detail="行=12"');
     expect(line.kind).toBe("comment");

@@ -171,15 +171,7 @@ function lineSpan(text: string): Span {
   return span(start, Math.max(start, end));
 }
 
-interface Builder {
-  readonly push: (issue: Issue) => void;
-}
-
-function makeBuilder(sink: Issue[]): Builder {
-  return { push: (issue) => void sink.push(issue) };
-}
-
-function checkFieldPresence(line: PredictionLine, pattern: PatternId, out: Builder): void {
+function checkFieldPresence(line: PredictionLine, pattern: PatternId, out: Issue[]): void {
   const spec = PATTERNS[pattern];
   const allowed = new Set<FieldKey>([...spec.required, ...spec.optional]);
   const seen = new Set<FieldKey>();
@@ -221,6 +213,10 @@ function checkFieldPresence(line: PredictionLine, pattern: PatternId, out: Build
     }
   }
 
+  // 足すのは本文の末尾。末尾記号があるなら、その手前でなければ項が記号の外に出てしまう。
+  const insertAt =
+    line.verdictSpan === null ? trimmedEnd(line.text) : trimmedEnd(line.text.slice(0, line.verdictSpan.start));
+
   for (const key of spec.required) {
     if (seen.has(key)) continue;
     const meta = FIELD_META[key];
@@ -233,7 +229,7 @@ function checkFieldPresence(line: PredictionLine, pattern: PatternId, out: Build
         {
           kind: "replace",
           title: `${meta.token}= を足す`,
-          span: span(trimmedEnd(line.text), trimmedEnd(line.text)),
+          span: span(insertAt, insertAt),
           text: ` ${meta.token}=`,
         },
       ],
@@ -242,7 +238,29 @@ function checkFieldPresence(line: PredictionLine, pattern: PatternId, out: Build
   }
 }
 
-function checkDeadline(line: PredictionLine, nowMs: number, out: Builder): void {
+/** 型と項のあいだの語。正規形が保存しないものを、黙って消える前に却下する。 */
+function checkStray(line: PredictionLine, out: Issue[]): void {
+  for (const stray of line.straySpans) {
+    const word = line.text.slice(stray.start, stray.end);
+    out.push({
+      ruleId: "G-STRAY",
+      severity: "error",
+      message: `「${word}」はどの項にも属さない。この位置の語は確定でも整形でも保存されない。項の値に入れるか、削除する。`,
+      span: stray,
+      fixes: [
+        {
+          kind: "replace",
+          title: `「${word.slice(0, 20)}」を削除する`,
+          span: stray,
+          text: "",
+        },
+      ],
+      excuse: null,
+    });
+  }
+}
+
+function checkDeadline(line: PredictionLine, nowMs: number, out: Issue[]): void {
   const field = getField(line, "D");
   if (field === null || field.value.length === 0) return;
   const parsed = parseAbsoluteDate(field.value);
@@ -294,7 +312,7 @@ function checkDeadline(line: PredictionLine, nowMs: number, out: Builder): void 
   }
 }
 
-function checkProbability(line: PredictionLine, out: Builder): void {
+function checkProbability(line: PredictionLine, out: Issue[]): void {
   const field = getField(line, "p");
   if (field === null || field.value.length === 0) return;
   const value = parseProbability(field.value);
@@ -348,7 +366,7 @@ function checkProbability(line: PredictionLine, out: Builder): void {
   }
 }
 
-function checkSingleObservation(line: PredictionLine, checks: CompiledChecks, out: Builder): void {
+function checkSingleObservation(line: PredictionLine, checks: CompiledChecks, out: Issue[]): void {
   for (const key of ["O", "C"] as const) {
     const field = getField(line, key);
     if (field === null || field.value.length === 0) continue;
@@ -375,7 +393,7 @@ function checkSingleObservation(line: PredictionLine, checks: CompiledChecks, ou
   }
 }
 
-function checkDisjunction(line: PredictionLine, checks: CompiledChecks, out: Builder): void {
+function checkDisjunction(line: PredictionLine, checks: CompiledChecks, out: Issue[]): void {
   for (const key of DISJUNCTION_FIELDS) {
     const field = getField(line, key);
     if (field === null || field.value.length === 0) continue;
@@ -399,7 +417,7 @@ function checkDisjunction(line: PredictionLine, checks: CompiledChecks, out: Bui
   }
 }
 
-function checkVocabulary(line: PredictionLine, checks: CompiledChecks, out: Builder): void {
+function checkVocabulary(line: PredictionLine, checks: CompiledChecks, out: Issue[]): void {
   const strictAll = checks.options.vocabularyEnforcement === "all";
   for (const key of VOCABULARY_FIELDS) {
     const field = getField(line, key);
@@ -432,7 +450,7 @@ function checkVocabulary(line: PredictionLine, checks: CompiledChecks, out: Buil
   }
 }
 
-function checkExceptionClosure(line: PredictionLine, checks: CompiledChecks, out: Builder): void {
+function checkExceptionClosure(line: PredictionLine, checks: CompiledChecks, out: Issue[]): void {
   for (const field of line.fields) {
     if (field.value.length === 0) continue;
     for (const hit of findAll(checks.exception, field.value)) {
@@ -458,7 +476,7 @@ function checkExceptionClosure(line: PredictionLine, checks: CompiledChecks, out
   }
 }
 
-function checkJudge(line: PredictionLine, checks: CompiledChecks, out: Builder): void {
+function checkJudge(line: PredictionLine, checks: CompiledChecks, out: Issue[]): void {
   const field = getField(line, "J");
   if (field === null || field.value.length === 0) return;
 
@@ -489,7 +507,7 @@ function checkJudge(line: PredictionLine, checks: CompiledChecks, out: Builder):
   }
 }
 
-function checkRemedy(line: PredictionLine, checks: CompiledChecks, out: Builder): void {
+function checkRemedy(line: PredictionLine, checks: CompiledChecks, out: Issue[]): void {
   const field = getField(line, "R");
   if (field === null || field.value.length === 0) return;
 
@@ -522,7 +540,7 @@ function checkRemedy(line: PredictionLine, checks: CompiledChecks, out: Builder)
   }
 }
 
-function checkCondition(line: PredictionLine, checks: CompiledChecks, out: Builder): void {
+function checkCondition(line: PredictionLine, checks: CompiledChecks, out: Issue[]): void {
   if (!checks.options.requireDefiniteCondition) return;
   const field = getField(line, "C");
   if (field === null || field.value.length === 0) return;
@@ -538,7 +556,7 @@ function checkCondition(line: PredictionLine, checks: CompiledChecks, out: Build
   });
 }
 
-function checkComparison(line: PredictionLine, out: Builder): void {
+function checkComparison(line: PredictionLine, out: Issue[]): void {
   const field = getField(line, "CMP");
   if (field === null || field.value.length === 0) return;
   if ((COMPARISONS as readonly string[]).includes(field.value)) return;
@@ -557,7 +575,7 @@ function checkComparison(line: PredictionLine, out: Builder): void {
   });
 }
 
-function checkMarker(line: PredictionLine, out: Builder): void {
+function checkMarker(line: PredictionLine, out: Issue[]): void {
   if (line.stamp === null || line.verdict !== null) return;
   const end = trimmedEnd(line.text);
   out.push({
@@ -570,7 +588,7 @@ function checkMarker(line: PredictionLine, out: Builder): void {
   });
 }
 
-function checkUnformalized(line: string, checks: CompiledChecks, out: Builder): void {
+function checkUnformalized(line: string, checks: CompiledChecks, out: Issue[]): void {
   out.push({
     ruleId: "G-UNFORMALIZED",
     severity: "warning",
@@ -607,13 +625,12 @@ const SEVERITY_RANK: Readonly<Record<Severity, number>> = {
 /** 一行を検査する。`nowMs` は C1 の基準時刻。 */
 export function checkLine(line: KongyoLine, checks: CompiledChecks, nowMs: number): readonly Issue[] {
   const issues: Issue[] = [];
-  const out = makeBuilder(issues);
 
   if (line.kind === "unformalized") {
-    checkUnformalized(line.text, checks, out);
+    checkUnformalized(line.text, checks, issues);
   } else if (line.kind === "prediction") {
     if (line.pattern === null) {
-      out.push({
+      issues.push({
         ruleId: "G-TYPE",
         severity: "error",
         message: `型が無い。行頭に ${PATTERN_IDS.join(" / ")} のいずれかを置く。`,
@@ -627,19 +644,20 @@ export function checkLine(line: KongyoLine, checks: CompiledChecks, nowMs: numbe
         excuse: null,
       });
     } else {
-      checkFieldPresence(line, line.pattern, out);
+      checkFieldPresence(line, line.pattern, issues);
     }
-    checkDeadline(line, nowMs, out);
-    checkProbability(line, out);
-    checkSingleObservation(line, checks, out);
-    checkDisjunction(line, checks, out);
-    checkVocabulary(line, checks, out);
-    checkExceptionClosure(line, checks, out);
-    checkJudge(line, checks, out);
-    checkRemedy(line, checks, out);
-    checkCondition(line, checks, out);
-    checkComparison(line, out);
-    checkMarker(line, out);
+    checkStray(line, issues);
+    checkDeadline(line, nowMs, issues);
+    checkProbability(line, issues);
+    checkSingleObservation(line, checks, issues);
+    checkDisjunction(line, checks, issues);
+    checkVocabulary(line, checks, issues);
+    checkExceptionClosure(line, checks, issues);
+    checkJudge(line, checks, issues);
+    checkRemedy(line, checks, issues);
+    checkCondition(line, checks, issues);
+    checkComparison(line, issues);
+    checkMarker(line, issues);
   }
 
   issues.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || a.span.start - b.span.start);

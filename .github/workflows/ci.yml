@@ -1,0 +1,52 @@
+# CI。push / PR ごとに、ローカルの `npm run gate` と同じものを走らせる。
+#
+# gate の中身（順に全部）：
+#   format:check → lint:strict → typecheck:ci → typecheck:test:ci
+#   → check:decl → lint:types → test → probe
+#
+# probe は束ねた dist/extension.js を Node が実際に読み、activate が登録し切るかを見る。
+# 最後に vsce でパッケージできることまで確かめ、.vsix を成果物として残す。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: gate（format / lint / 型 / テスト / probe / package）
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # scripts/*.mts を node が直接読む（型剥がし）ため、Node 22.18 以上が要る。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 依存の取得
+        run: npm ci
+
+      - name: 全ゲート
+        run: npm run gate
+
+      - name: パッケージできることの確認（.vsix）
+        run: npm run package
+
+      - name: .vsix を成果物として保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: "*.vsix"
+          if-no-files-found: error
+          retention-days: 14
