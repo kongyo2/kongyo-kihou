@@ -214,6 +214,15 @@ npm run package    # .vsix を作る
 | `test` | 単体テスト |
 | `probe` | **束ねた `dist/extension.js` を Node が実際に読み、`activate` が登録し切るか。** `tsc` が通ることは、束ねた JS が動くことを意味しない |
 
+### CI とリリース
+
+- **CI**（`.github/workflows/ci.yml`）：push / PR ごとに上の全ゲートを走らせ、`.vsix` をパッケージして成果物に残す
+- **リリース**（`.github/workflows/release.yml`）：`vX.Y.Z` のタグを押すと、タグと `package.json` の版の一致を検めてから全ゲートを通し、CHANGELOG の当該版の節をノートとして GitHub Release に `.vsix` を添付する
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0   # リリースの手順はこれだけ
+```
+
 ## ライセンス
 
 MIT
